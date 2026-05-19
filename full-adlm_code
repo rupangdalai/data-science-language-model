@@ -1,0 +1,352 @@
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import LabelEncoder
+from sklearn.preprocessing import StandardScaler
+
+from sklearn.ensemble import (
+    RandomForestRegressor,
+    RandomForestClassifier
+)
+
+from sklearn.cluster import KMeans
+
+from sklearn.metrics import (
+    mean_squared_error,
+    r2_score,
+    accuracy_score,
+    classification_report,
+    silhouette_score
+)
+
+from statsmodels.tsa.arima.model import ARIMA
+
+import warnings
+warnings.filterwarnings("ignore")
+
+
+class AdaptiveDSLM:
+
+    def __init__(self, file_path):
+        self.file_path = file_path
+        self.df = None
+        self.problem_type = None
+        self.target_column = None
+
+    # -------------------------------
+    # LOAD DATASET
+    # -------------------------------
+
+    def load_dataset(self):
+        self.df = pd.read_csv(self.file_path)
+
+        print("\nDataset Loaded Successfully")
+        print("Shape:", self.df.shape)
+
+        print("\nFirst 5 Rows:")
+        print(self.df.head())
+
+    # -------------------------------
+    # ANALYZE DATASET
+    # -------------------------------
+
+    def analyze_dataset(self):
+
+        print("\n========== DATASET ANALYSIS ==========")
+
+        print("\nDataset Info:")
+        print(self.df.info())
+
+        print("\nMissing Values:")
+        print(self.df.isnull().sum())
+
+        print("\nStatistical Summary:")
+        print(self.df.describe())
+
+    # -------------------------------
+    # DETECT PROBLEM TYPE
+    # -------------------------------
+
+    def detect_problem_type(self):
+
+        print("\nColumns:")
+        print(self.df.columns)
+
+        self.target_column = input(
+            "\nEnter target column name (Press ENTER for clustering): "
+        )
+
+        if self.target_column == "":
+            self.problem_type = "clustering"
+            return
+
+        target = self.df[self.target_column]
+
+        if target.dtype == "object" or len(target.unique()) < 10:
+            self.problem_type = "classification"
+
+        else:
+            self.problem_type = "regression"
+
+        print("\nDetected Problem Type:", self.problem_type.upper())
+
+    # -------------------------------
+    # PREPROCESSING
+    # -------------------------------
+
+    def preprocess_data(self):
+
+        for col in self.df.columns:
+
+            if self.df[col].dtype == "object":
+                self.df[col].fillna(
+                    self.df[col].mode()[0],
+                    inplace=True
+                )
+
+            else:
+                self.df[col].fillna(
+                    self.df[col].mean(),
+                    inplace=True
+                )
+
+        encoder = LabelEncoder()
+
+        for col in self.df.columns:
+            if self.df[col].dtype == "object":
+                self.df[col] = encoder.fit_transform(self.df[col])
+
+        print("\nPreprocessing Completed")
+
+    # -------------------------------
+    # REGRESSION
+    # -------------------------------
+
+    def regression_model(self):
+
+        X = self.df.drop(self.target_column, axis=1)
+        y = self.df[self.target_column]
+
+        X_train, X_test, y_train, y_test = train_test_split(
+            X,
+            y,
+            test_size=0.2,
+            random_state=42
+        )
+
+        scaler = StandardScaler()
+
+        X_train = scaler.fit_transform(X_train)
+        X_test = scaler.transform(X_test)
+
+        model = RandomForestRegressor(
+            n_estimators=100,
+            random_state=42
+        )
+
+        model.fit(X_train, y_train)
+
+        predictions = model.predict(X_test)
+
+        mse = mean_squared_error(y_test, predictions)
+        rmse = np.sqrt(mse)
+        r2 = r2_score(y_test, predictions)
+
+        print("\n========== REGRESSION RESULTS ==========")
+
+        print("MSE:", mse)
+        print("RMSE:", rmse)
+        print("R2 Score:", r2)
+
+    # -------------------------------
+    # CLASSIFICATION
+    # -------------------------------
+
+    def classification_model(self):
+
+        X = self.df.drop(self.target_column, axis=1)
+        y = self.df[self.target_column]
+
+        X_train, X_test, y_train, y_test = train_test_split(
+            X,
+            y,
+            test_size=0.2,
+            random_state=42
+        )
+
+        scaler = StandardScaler()
+
+        X_train = scaler.fit_transform(X_train)
+        X_test = scaler.transform(X_test)
+
+        model = RandomForestClassifier(
+            n_estimators=100,
+            random_state=42
+        )
+
+        model.fit(X_train, y_train)
+
+        predictions = model.predict(X_test)
+
+        accuracy = accuracy_score(y_test, predictions)
+
+        print("\n========== CLASSIFICATION RESULTS ==========")
+
+        print("Accuracy:", accuracy)
+
+        print("\nClassification Report:")
+        print(classification_report(y_test, predictions))
+
+    # -------------------------------
+    # CLUSTERING
+    # -------------------------------
+
+    def clustering_model(self):
+
+        X = self.df.copy()
+
+        scaler = StandardScaler()
+
+        X_scaled = scaler.fit_transform(X)
+
+        model = KMeans(
+            n_clusters=3,
+            random_state=42
+        )
+
+        clusters = model.fit_predict(X_scaled)
+
+        self.df["Cluster"] = clusters
+
+        score = silhouette_score(X_scaled, clusters)
+
+        print("\n========== CLUSTERING RESULTS ==========")
+
+        print("Silhouette Score:", score)
+
+        plt.figure(figsize=(8, 5))
+
+        plt.scatter(
+            X_scaled[:, 0],
+            X_scaled[:, 1],
+            c=clusters
+        )
+
+        plt.title("Cluster Visualization")
+
+        plt.show()
+
+    # -------------------------------
+    # TIME SERIES
+    # -------------------------------
+
+    def time_series_model(self):
+
+        column = input(
+            "\nEnter numeric column for forecasting: "
+        )
+
+        data = self.df[column]
+
+        model = ARIMA(
+            data,
+            order=(5, 1, 0)
+        )
+
+        model_fit = model.fit()
+
+        forecast = model_fit.forecast(steps=10)
+
+        print("\nForecast Values:")
+        print(forecast)
+
+        plt.figure(figsize=(10, 5))
+
+        plt.plot(data, label="Original")
+
+        plt.plot(
+            range(len(data), len(data) + 10),
+            forecast,
+            label="Forecast"
+        )
+
+        plt.legend()
+
+        plt.title("Time Series Forecast")
+
+        plt.show()
+
+    # -------------------------------
+    # EXPLANATION
+    # -------------------------------
+
+    def generate_explanation(self):
+
+        print("\n========== MODEL EXPLANATION ==========")
+
+        if self.problem_type == "regression":
+
+            print(
+                "Random Forest Regressor selected "
+                "because target values are continuous."
+            )
+
+        elif self.problem_type == "classification":
+
+            print(
+                "Random Forest Classifier selected "
+                "because target values are categorical."
+            )
+
+        elif self.problem_type == "clustering":
+
+            print(
+                "K-Means selected because "
+                "no target column was provided."
+            )
+
+    # -------------------------------
+    # RUN PIPELINE
+    # -------------------------------
+
+    def run_pipeline(self):
+
+        self.load_dataset()
+
+        self.analyze_dataset()
+
+        self.detect_problem_type()
+
+        self.preprocess_data()
+
+        if self.problem_type == "regression":
+            self.regression_model()
+
+        elif self.problem_type == "classification":
+            self.classification_model()
+
+        elif self.problem_type == "clustering":
+            self.clustering_model()
+
+        self.generate_explanation()
+
+
+# ======================================
+# MAIN PROGRAM
+# ======================================
+
+if __name__ == "__main__":
+
+    print("\n================================")
+    print("ADAPTIVE DATA SCIENCE MODEL")
+    print("================================")
+
+    file_path = input(
+        "\nEnter CSV dataset path: "
+    )
+
+    system = AdaptiveDSLM(file_path)
+
+    system.run_pipeline()
